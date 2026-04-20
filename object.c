@@ -180,7 +180,52 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 // The caller is responsible for calling free(*data_out).
 // Returns 0 on success, -1 on error (file not found, corrupt, etc.).
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
-    // TODO: Implement
-    (void)id; (void)type_out; (void)data_out; (void)len_out;
-    return -1;
+    // Step 1: Get path
+    char path[512];
+    object_path(id, path, sizeof(path));
+
+    // Step 2: Open and read full file
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (file_size <= 0) { fclose(f); return -1; }
+
+    uint8_t *buf = malloc((size_t)file_size);
+    if (!buf) { fclose(f); return -1; }
+
+    if (fread(buf, 1, (size_t)file_size, f) != (size_t)file_size) {
+        free(buf); fclose(f); return -1;
+    }
+    fclose(f);
+
+    // Step 3: Integrity check — recompute hash and compare to filename
+    ObjectID computed;
+    compute_hash(buf, (size_t)file_size, &computed);
+    if (memcmp(computed.hash, id->hash, HASH_SIZE) != 0) {
+        free(buf); return -1; // Corrupted!
+    }
+
+    // Step 4: Parse header — find the null byte separating header from data
+    uint8_t *null_pos = memchr(buf, '\0', (size_t)file_size);
+    if (!null_pos) { free(buf); return -1; }
+
+    // Step 5: Parse type string from header (before the space)
+    if      (strncmp((char *)buf, "blob ",   5) == 0) *type_out = OBJ_BLOB;
+    else if (strncmp((char *)buf, "tree ",   5) == 0) *type_out = OBJ_TREE;
+    else if (strncmp((char *)buf, "commit ", 7) == 0) *type_out = OBJ_COMMIT;
+    else { free(buf); return -1; }
+
+    // Step 6: Extract data portion (after the \0)
+    size_t header_len = (size_t)(null_pos - buf) + 1;
+    *len_out = (size_t)file_size - header_len;
+    *data_out = malloc(*len_out + 1); // +1 for safety null terminator
+    if (!*data_out) { free(buf); return -1; }
+    memcpy(*data_out, null_pos + 1, *len_out);
+    ((uint8_t *)*data_out)[*len_out] = '\0';
+
+    free(buf);
+    return 0;
 }
