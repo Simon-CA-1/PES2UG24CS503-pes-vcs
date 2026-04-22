@@ -193,6 +193,13 @@ int head_update(const ObjectID *new_commit) {
 //   - head_update       : moves the branch pointer to your new commit
 //
 // Returns 0 on success, -1 on error.
+
+// Step 8: Atomically move the branch pointer to the new commit.
+    // This is the single operation that "publishes" the commit.
+    // Before this line, the commit exists in the object store but nothing
+    // points to it. After this line, HEAD → branch → new commit.
+    // If the process crashes before this rename, the commit is simply lost —
+    // which is safe. The repo is never left in a corrupt state.
 int commit_create(const char *message, ObjectID *commit_id_out) {
     // IMPORTANT: We snapshot the INDEX (staged files), not the working directory.
     // This is fundamental — you explicitly control what goes into each commit
@@ -211,6 +218,9 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     memcpy(c.tree.hash, tree_id.hash, HASH_SIZE);
 
     // Step 3: Try to read HEAD as parent commit (none on first commit)
+    // Step 3: The parent pointer creates the commit history chain.
+    // Each commit points to its parent, forming a linked list on disk.
+    // The first commit has no parent (has_parent = 0).
     ObjectID parent_id;
     if (head_read(&parent_id) == 0) {
         c.has_parent = 1;
