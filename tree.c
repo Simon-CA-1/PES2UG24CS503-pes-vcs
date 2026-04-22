@@ -132,6 +132,9 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 //   - object_write    : save that binary buffer to the store as OBJ_TREE
 //
 // Returns 0 on success, -1 on error.
+// tree_from_index snapshots the STAGED state (index), not the
+// working directory. This is why staging and committing are
+// two separate steps — you control exactly what goes into each commit.
 int tree_from_index(ObjectID *id_out) {
     Index index;
     index.count = 0;
@@ -151,6 +154,11 @@ int tree_from_index(ObjectID *id_out) {
     // Build the full tree hierarchy recursively starting at depth 0
     return write_tree_level(index.entries, index.count, 0, id_out);
 }
+// This function mirrors how Git builds tree objects:
+// files at the current depth become blob entries,
+// subdirectories become nested tree objects stored recursively.
+// tree_serialize will sort entries by name before writing,
+// ensuring deterministic hashes for identical directory contents.
 static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID *id_out) {
     Tree tree;
     tree.count = 0;
