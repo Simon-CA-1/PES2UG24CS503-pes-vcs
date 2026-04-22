@@ -116,10 +116,7 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 
     // Step 4: Compute SHA-256 of full object
     compute_hash(full, full_len, id_out);
-    if (object_exists(id_out)) {
-    free(full);
-    return 0;
-}
+    
     // Step 5: Deduplication — if already stored, nothing to do
     if (object_exists(id_out)) {
         free(full);
