@@ -119,41 +119,6 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 
 // ─── TODO: Implement these ──────────────────────────────────────────────────
 
-// Build a tree hierarchy from the current index and write all tree
-// objects to the object store.
-//
-// HINTS - Useful functions and concepts for this phase:
-//   - index_load      : load the staged files into memory
-//   - strchr          : find the first '/' in a path to separate directories from files
-//   - strncmp         : compare prefixes to group files belonging to the same subdirectory
-//   - Recursion       : you will likely want to create a recursive helper function 
-//                       (e.g., `write_tree_level(entries, count, depth)`) to handle nested dirs.
-//   - tree_serialize  : convert your populated Tree struct into a binary buffer
-//   - object_write    : save that binary buffer to the store as OBJ_TREE
-//
-// Returns 0 on success, -1 on error.
-// tree_from_index snapshots the STAGED state (index), not the
-// working directory. This is why staging and committing are
-// two separate steps — you control exactly what goes into each commit.
-int tree_from_index(ObjectID *id_out) {
-    Index index;
-    index.count = 0;
-
-    // Load staged files — if index is empty or missing, store an empty tree
-    if (index_load(&index) != 0 || index.count == 0) {
-        Tree empty_tree;
-        empty_tree.count = 0;
-        void *tree_data;
-        size_t tree_len;
-        if (tree_serialize(&empty_tree, &tree_data, &tree_len) != 0) return -1;
-        int rc = object_write(OBJ_TREE, tree_data, tree_len, id_out);
-        free(tree_data);
-        return rc;
-    }
-
-    // Build the full tree hierarchy recursively starting at depth 0
-    return write_tree_level(index.entries, index.count, 0, id_out);
-}
 // This function mirrors how Git builds tree objects:
 // files at the current depth become blob entries,
 // subdirectories become nested tree objects stored recursively.
@@ -184,7 +149,7 @@ static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID 
             strncpy(te->name, p, sizeof(te->name) - 1);
             te->name[sizeof(te->name) - 1] = '\0';
             te->mode = e->mode;
-            memcpy(te->hash.hash, e->id.hash, HASH_SIZE);
+            memcpy(te->hash.hash, e->hash.hash, HASH_SIZE);  // field is 'hash' not 'id'
             i++;
         } else {
             // This entry belongs to a subdirectory at the current level
@@ -232,4 +197,27 @@ static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID 
     int rc = object_write(OBJ_TREE, tree_data, tree_len, id_out);
     free(tree_data);
     return rc;
+}
+
+// tree_from_index snapshots the STAGED state (index), not the
+// working directory. This is why staging and committing are
+// two separate steps — you control exactly what goes into each commit.
+int tree_from_index(ObjectID *id_out) {
+    Index index;
+    index.count = 0;
+
+    // Load staged files — if index is empty or missing, store an empty tree
+    if (index_load(&index) != 0 || index.count == 0) {
+        Tree empty_tree;
+        empty_tree.count = 0;
+        void *tree_data;
+        size_t tree_len;
+        if (tree_serialize(&empty_tree, &tree_data, &tree_len) != 0) return -1;
+        int rc = object_write(OBJ_TREE, tree_data, tree_len, id_out);
+        free(tree_data);
+        return rc;
+    }
+
+    // Build the full tree hierarchy recursively starting at depth 0
+    return write_tree_level(index.entries, index.count, 0, id_out);
 }
