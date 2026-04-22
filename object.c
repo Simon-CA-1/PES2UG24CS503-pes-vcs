@@ -189,7 +189,11 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
 
     // Step 2: Open and read full file
     FILE *f = fopen(path, "rb");
-    if (!f) return -1;
+    if (!f)
+    {
+        fprintf(stderr, "error: object not found at %s\n", path);
+        return -1;
+    }
 
     fseek(f, 0, SEEK_END);
     long file_size = ftell(f);
