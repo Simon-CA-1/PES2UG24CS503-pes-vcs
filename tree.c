@@ -166,8 +166,42 @@ static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID 
             memcpy(te->hash.hash, e->id.hash, HASH_SIZE);
             i++;
         } else {
-            // Placeholder — subdirectory handling added in next commit
-            i++;
+            // This entry belongs to a subdirectory at the current level
+            // Extract just the directory name (before the slash)
+            char dir_name[256];
+            size_t dir_name_len = slash - p;
+            strncpy(dir_name, p, dir_name_len);
+            dir_name[dir_name_len] = '\0';
+
+            // Count all consecutive entries that share this same subdirectory
+            int j = i;
+            while (j < count) {
+                const char *q = entries[j].path;
+                for (int d = 0; d < depth; d++) {
+                    q = strchr(q, '/');
+                    if (!q) break;
+                    q++;
+                }
+                const char *q_slash = strchr(q, '/');
+                if (!q_slash) break;
+                size_t qlen = q_slash - q;
+                if (qlen != dir_name_len || strncmp(q, dir_name, dir_name_len) != 0) break;
+                j++;
+            }
+
+            // Recursively build and store the subtree for those entries
+            ObjectID subtree_id;
+            if (write_tree_level(entries + i, j - i, depth + 1, &subtree_id) != 0)
+                return -1;
+
+            // Add a directory (tree) entry pointing to the subtree
+            TreeEntry *te = &tree.entries[tree.count++];
+            strncpy(te->name, dir_name, sizeof(te->name) - 1);
+            te->name[sizeof(te->name) - 1] = '\0';
+            te->mode = 0040000;
+            memcpy(te->hash.hash, subtree_id.hash, HASH_SIZE);
+
+            i = j;
         }
     }
 
