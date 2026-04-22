@@ -138,10 +138,41 @@ int index_status(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_load(Index *index) {
-    // TODO: Implement index loading
-    // (See Lab Appendix for logical steps)
-    (void)index;
-    return -1;
+    index->count = 0;
+
+    FILE *f = fopen(INDEX_FILE, "r");
+    if (!f) {
+        // A missing index file is not an error — it just means no files
+        // have been staged yet. This is the normal state of a fresh repo.
+        return 0;
+    }
+
+    char hex[HASH_HEX_SIZE + 2];
+    char path[512];
+    unsigned int mode;
+    unsigned long long mtime;
+    unsigned long long size;
+
+    // Each line: mode(octal) hash(hex) mtime size path
+    // mtime and size enable fast change detection in index_status
+    // without re-hashing the file every time
+    while (index->count < MAX_INDEX_ENTRIES) {
+        int r = fscanf(f, "%o %64s %llu %llu %511s\n",
+                       &mode, hex, &mtime, &size, path);
+        if (r == EOF || r < 5) break;
+
+        IndexEntry *e = &index->entries[index->count];
+        e->mode = (uint32_t)mode;
+        if (hex_to_hash(hex, &e->hash) != 0) { fclose(f); return -1; }
+        e->mtime_sec = (uint64_t)mtime;
+        e->size      = (uint32_t)size;
+        strncpy(e->path, path, sizeof(e->path) - 1);
+        e->path[sizeof(e->path) - 1] = '\0';
+        index->count++;
+    }
+
+    fclose(f);
+    return 0;
 }
 
 // Save the index to .pes/index atomically.
