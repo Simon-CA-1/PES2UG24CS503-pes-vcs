@@ -22,6 +22,12 @@
 // The result is a linked list of commits on disk, each pointing to
 // its parent, forming the complete version history.
 // head_update atomically publishes each commit by updating the branch file.
+// INTEGRITY GUARANTEE:
+// Because every object is named by its SHA-256 hash (Phase 1),
+// and commits point to trees by hash, and trees point to blobs by hash,
+// the entire history is tamper-evident. Changing any file, directory,
+// or commit message would change every hash above it in the chain —
+// exactly the same guarantee Git provides.
 #include "commit.h"
 #include "index.h"
 #include "tree.h"
