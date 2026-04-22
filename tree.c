@@ -8,14 +8,17 @@
 //
 // Example single entry (conceptual):
 //   "100644 hello.txt\0" followed by 32 raw bytes of SHA-256
-
+// Phase 2 Implementation by: SIMON C A (PES2UG24CS503)
 #include "tree.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
-
+#include "index.h"
+// Forward declarations
+int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
+int index_load(Index *index);
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
 #define MODE_FILE      0100644
