@@ -14,7 +14,12 @@
 //
 // PROVIDED functions: index_find, index_remove, index_status
 // TODO functions:     index_load, index_save, index_add
-
+// PHASE 3 SUMMARY:
+// index_load reads the text-format .pes/index file into memory.
+// index_save writes it back atomically using temp+rename.
+// index_add reads a file, stores it as a blob, and records the hash +
+// metadata (mtime, size, mode) so index_status can detect changes
+// without re-hashing every file on every status call.
 #include <time.h>
 #include "index.h"
 #include <stdio.h>
