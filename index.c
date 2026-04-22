@@ -195,20 +195,21 @@ static int compare_index_entries(const void *a, const void *b) {
 }
 
 int index_save(const Index *index) {
-    // Work on a sorted copy — index must always be sorted by path
-    Index sorted = *index;
-    qsort(sorted.entries, sorted.count, sizeof(IndexEntry), compare_index_entries);
+    // Use malloc instead of stack allocation — Index is ~5.6MB, too large for stack
+    Index *sorted = malloc(sizeof(Index));
+    if (!sorted) return -1;
+    *sorted = *index;
+    qsort(sorted->entries, sorted->count, sizeof(IndexEntry), compare_index_entries);
 
-    // Write to temp file first — never write directly to .pes/index
     char tmp_path[256];
     snprintf(tmp_path, sizeof(tmp_path), "%s.tmp", INDEX_FILE);
 
     FILE *f = fopen(tmp_path, "w");
-    if (!f) return -1;
+    if (!f) { free(sorted); return -1; }
 
     char hex[HASH_HEX_SIZE + 1];
-    for (int i = 0; i < sorted.count; i++) {
-        IndexEntry *e = &sorted.entries[i];
+    for (int i = 0; i < sorted->count; i++) {
+        IndexEntry *e = &sorted->entries[i];
         hash_to_hex(&e->hash, hex);
         fprintf(f, "%o %s %llu %llu %s\n",
                 e->mode, hex,
@@ -217,12 +218,11 @@ int index_save(const Index *index) {
                 e->path);
     }
 
-    // Flush userspace buffers then sync to disk before rename
     fflush(f);
     fsync(fileno(f));
     fclose(f);
+    free(sorted);
 
-    // Atomic rename — readers always see a complete index file
     return rename(tmp_path, INDEX_FILE);
 }
 
