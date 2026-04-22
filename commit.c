@@ -14,6 +14,14 @@
 // PROVIDED functions: commit_parse, commit_serialize, commit_walk, head_read, head_update
 // TODO functions:     commit_create
 // Phase 4 Implementation by: SIMON C A (PES2UG24CS503)
+// PHASE 4 SUMMARY:
+// commit_create ties together all previous phases:
+//   Phase 1 — object_write stores the commit object by hash
+//   Phase 2 — tree_from_index snapshots staged files as a tree
+//   Phase 3 — index_load loads what is staged
+// The result is a linked list of commits on disk, each pointing to
+// its parent, forming the complete version history.
+// head_update atomically publishes each commit by updating the branch file.
 #include "commit.h"
 #include "index.h"
 #include "tree.h"
