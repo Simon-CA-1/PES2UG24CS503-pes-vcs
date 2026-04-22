@@ -231,8 +231,55 @@ int index_save(const Index *index) {
 //
 // Returns 0 on success, -1 on error.
 int index_add(Index *index, const char *path) {
-    // TODO: Implement file staging
-    // (See Lab Appendix for logical steps)
-    (void)index; (void)path;
-    return -1;
+    // Step 1: Read entire file contents from disk
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "error: cannot open '%s'\n", path);
+        return -1;
+    }
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    void *file_data = malloc((size_t)file_size + 1);
+    if (!file_data) { fclose(f); return -1; }
+    fread(file_data, 1, (size_t)file_size, f);
+    fclose(f);
+
+    // Step 2: Store contents as a blob in the object store
+    ObjectID blob_id;
+    if (object_write(OBJ_BLOB, file_data, (size_t)file_size, &blob_id) != 0) {
+        free(file_data);
+        return -1;
+    }
+    free(file_data);
+
+    // Step 3: Get file metadata for the index entry
+    struct stat st;
+    if (lstat(path, &st) != 0) return -1;
+
+    uint32_t mode;
+    if (S_ISDIR(st.st_mode))       mode = 0040000;
+    else if (st.st_mode & S_IXUSR) mode = 0100755;
+    else                            mode = 0100644;
+
+    // Step 4: Update existing entry or insert new one
+    IndexEntry *existing = index_find(index, path);
+    if (existing) {
+        memcpy(existing->hash.hash, blob_id.hash, HASH_SIZE);
+        existing->mtime_sec = (uint64_t)st.st_mtime;
+        existing->size      = (uint32_t)st.st_size;
+        existing->mode      = mode;
+    } else {
+        if (index->count >= MAX_INDEX_ENTRIES) return -1;
+        IndexEntry *e = &index->entries[index->count++];
+        memcpy(e->hash.hash, blob_id.hash, HASH_SIZE);
+        e->mtime_sec = (uint64_t)st.st_mtime;
+        e->size      = (uint32_t)st.st_size;
+        e->mode      = mode;
+        strncpy(e->path, path, sizeof(e->path) - 1);
+        e->path[sizeof(e->path) - 1] = '\0';
+    }
+
+    // Step 5: Persist the updated index atomically
+    return index_save(index);
 }
