@@ -13,7 +13,7 @@
 //
 // PROVIDED functions: commit_parse, commit_serialize, commit_walk, head_read, head_update
 // TODO functions:     commit_create
-
+// Phase 4 Implementation by: SIMON C A (PES2UG24CS503)
 #include "commit.h"
 #include "index.h"
 #include "tree.h"
@@ -194,8 +194,22 @@ int head_update(const ObjectID *new_commit) {
 //
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
-    // TODO: Implement commit creation
-    // (See Lab Appendix for logical steps)
-    (void)message; (void)commit_id_out;
+    // IMPORTANT: We snapshot the INDEX (staged files), not the working directory.
+    // This is fundamental — you explicitly control what goes into each commit
+    // by staging only the changes you want with 'pes add'.
+
+    // Step 1: Build the tree snapshot from the current index
+    ObjectID tree_id;
+    if (tree_from_index(&tree_id) != 0) {
+        fprintf(stderr, "error: failed to build tree from index\n");
+        return -1;
+    }
+
+    // Step 2: Initialize the commit struct
+    Commit c;
+    memset(&c, 0, sizeof(c));
+    memcpy(c.tree.hash, tree_id.hash, HASH_SIZE);
+
+    // TODO: fill parent, author, timestamp, message — next commit
     return -1;
 }
