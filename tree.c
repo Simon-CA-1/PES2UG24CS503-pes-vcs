@@ -18,7 +18,12 @@
 #include "index.h"
 // Forward declarations
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out);
-int index_load(Index *index);
+// Weak stub so test_tree can link without index.o
+// When the full binary is built, the real index_load from index.c takes over
+__attribute__((weak)) int index_load(Index *index) {
+    index->count = 0;
+    return 0;
+}
 // ─── Mode Constants ─────────────────────────────────────────────────────────
 
 #define MODE_FILE      0100644
