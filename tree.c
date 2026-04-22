@@ -138,3 +138,43 @@ int tree_from_index(ObjectID *id_out) {
     (void)id_out;
     return -1;
 }
+static int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID *id_out) {
+    Tree tree;
+    tree.count = 0;
+
+    int i = 0;
+    while (i < count) {
+        IndexEntry *e = &entries[i];
+
+        // Navigate to the path component at the current depth
+        const char *p = e->path;
+        for (int d = 0; d < depth; d++) {
+            p = strchr(p, '/');
+            if (!p) return -1;
+            p++;
+        }
+
+        const char *slash = strchr(p, '/');
+
+        if (!slash) {
+            // This entry is a plain file at the current level
+            // Add it directly as a blob tree entry
+            TreeEntry *te = &tree.entries[tree.count++];
+            strncpy(te->name, p, sizeof(te->name) - 1);
+            te->name[sizeof(te->name) - 1] = '\0';
+            te->mode = e->mode;
+            memcpy(te->hash.hash, e->id.hash, HASH_SIZE);
+            i++;
+        } else {
+            // Placeholder — subdirectory handling added in next commit
+            i++;
+        }
+    }
+
+    void *tree_data;
+    size_t tree_len;
+    if (tree_serialize(&tree, &tree_data, &tree_len) != 0) return -1;
+    int rc = object_write(OBJ_TREE, tree_data, tree_len, id_out);
+    free(tree_data);
+    return rc;
+}
