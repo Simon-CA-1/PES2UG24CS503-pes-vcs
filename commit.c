@@ -210,6 +210,36 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
     memset(&c, 0, sizeof(c));
     memcpy(c.tree.hash, tree_id.hash, HASH_SIZE);
 
-    // TODO: fill parent, author, timestamp, message — next commit
-    return -1;
+    // Step 3: Try to read HEAD as parent commit (none on first commit)
+    ObjectID parent_id;
+    if (head_read(&parent_id) == 0) {
+        c.has_parent = 1;
+        memcpy(c.parent.hash, parent_id.hash, HASH_SIZE);
+    } else {
+        c.has_parent = 0; // First commit — no parent
+    }
+
+    // Step 4: Set author from PES_AUTHOR env variable and current timestamp
+    strncpy(c.author, pes_author(), sizeof(c.author) - 1);
+    c.author[sizeof(c.author) - 1] = '\0';
+    c.timestamp = (uint64_t)time(NULL);
+
+    // Step 5: Set commit message
+    strncpy(c.message, message, sizeof(c.message) - 1);
+    c.message[sizeof(c.message) - 1] = '\0';
+
+    // Step 6: Serialize commit struct to text format
+    void *commit_data;
+    size_t commit_len;
+    if (commit_serialize(&c, &commit_data, &commit_len) != 0) return -1;
+
+    // Step 7: Write commit object to the object store
+    if (object_write(OBJ_COMMIT, commit_data, commit_len, commit_id_out) != 0) {
+        free(commit_data);
+        return -1;
+    }
+    free(commit_data);
+
+    // Step 8: Atomically move the branch pointer to the new commit
+    return head_update(commit_id_out);
 }
